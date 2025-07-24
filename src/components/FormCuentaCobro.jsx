@@ -5,50 +5,61 @@ import Button from "./Button";
 export default function FormCuentaCobro({
   onSubmit,
   clientes = [],
-  onCrearCliente,
   initialData = null,
-  onCancel
+  onCancel,
+  onCrearCliente // Opcional: para refrescar desde app
 }) {
-  // Nuevo: lista local actualizable de clientes
-  const [clientesLocal, setClientesLocal] = useState(clientes);
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
-  const [clienteRecienCreado, setClienteRecienCreado] = useState(null);
+  const [clientesLocal, setClientesLocal] = useState(clientes);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState(
+    initialData ? initialData.clienteId : ""
+  );
 
-  const [form, setForm] = useState(() => initialData ? {
-    ...initialData,
-    items: (initialData.items || []).map(it => ({
-      ...it,
-      fechaItem: it.fechaItem || ""
-    }))
-  } : {
-    clienteNombre: "",
-    clienteEmpresa: "",
-    clienteNIT: "",
-    clienteDireccion: "",
-    clienteTelefono: "",
-    clienteCiudad: "",
-    correo: "",
-    items: [{ cantidad: 1, descripcion: "", valorUnitario: "", valorTotal: "", fechaItem: "" }],
-    banco: "Bancolombia",
-    cuentaBancaria: "230-000443-42",
-    subtotal: "",
-    total: "",
-    fecha: "",
-  });
+  const [form, setForm] = useState(() =>
+    initialData
+      ? {
+          ...initialData,
+          items: (initialData.items || []).map((it) => ({
+            ...it,
+            fechaItem: it.fechaItem || "",
+          })),
+        }
+      : {
+          clienteId: "",
+          fecha: "",
+          items: [
+            {
+              cantidad: 1,
+              descripcion: "",
+              valorUnitario: "",
+              valorTotal: "",
+              fechaItem: "",
+            },
+          ],
+          banco: "Bancolombia",
+          cuentaBancaria: "230-000443-42",
+        }
+  );
 
   // Handler universal
-  const handleChange = e => {
+  const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
+    setForm((f) => ({ ...f, [name]: value }));
   };
 
-  // Cambio en un item
+  // Cliente select
+  const handleClienteSelect = (e) => {
+    const id = e.target.value;
+    setForm((f) => ({ ...f, clienteId: id }));
+    setClienteSeleccionado(id);
+    setShowNuevoCliente(false);
+  };
+
+  // Items
   const handleItemChange = (i, field, value) => {
-    setForm(f => {
+    setForm((f) => {
       const items = [...f.items];
       items[i] = { ...items[i], [field]: value };
-
-      // Actualiza total automático si cambia cantidad o unitario
       if (field === "cantidad" || field === "valorUnitario") {
         const cantidad = parseInt(items[i].cantidad) || 0;
         const unitario = parseFloat(items[i].valorUnitario) || 0;
@@ -58,187 +69,205 @@ export default function FormCuentaCobro({
     });
   };
 
-  const calcularTotales = items => {
+  const agregarItem = () => {
+    setForm((f) => ({
+      ...f,
+      items: [
+        ...f.items,
+        {
+          cantidad: 1,
+          descripcion: "",
+          valorUnitario: "",
+          valorTotal: "",
+          fechaItem: "",
+        },
+      ],
+    }));
+  };
+
+  const quitarItem = (i) => {
+    setForm((f) => ({
+      ...f,
+      items: f.items.filter((_, idx) => idx !== i),
+    }));
+  };
+
+  const calcularTotales = (items) => {
     let subtotal = 0;
-    items.forEach(it => {
+    items.forEach((it) => {
       const total = parseFloat(it.valorTotal) || 0;
       subtotal += total;
     });
     return { subtotal, total: subtotal };
   };
 
-  const agregarItem = () => {
-    setForm(f => ({
-      ...f,
-      items: [...f.items, { cantidad: 1, descripcion: "", valorUnitario: "", valorTotal: "", fechaItem: "" }]
-    }));
-  };
-
-  const quitarItem = i => {
-    setForm(f => ({
-      ...f,
-      items: f.items.filter((_, idx) => idx !== i)
-    }));
-  };
-
-  // Selección cliente (ahora usa clientesLocal)
-  const handleClienteSelect = e => {
-    const nombre = e.target.value;
-    if (nombre === "__nuevo__") {
-      setShowNuevoCliente(true);
-      return;
-    }
-    setForm(f => {
-      const cliente = clientesLocal.find(c => c.nombre === nombre);
-      if (cliente) {
-        return {
-          ...f,
-          clienteNombre: cliente.nombre,
-          clienteEmpresa: cliente.empresa || "",
-          clienteNIT: cliente.nit || "",
-          clienteDireccion: cliente.direccion || "",
-          clienteTelefono: cliente.telefono || "",
-          clienteCiudad: cliente.ciudad || "",
-          correo: cliente.correo || "",
-        };
-      } else {
-        return { ...f, clienteNombre: nombre };
-      }
-    });
-    setShowNuevoCliente(false);
-    setClienteRecienCreado(null);
-  };
-
-  // Al crear cliente, SIEMPRE lo guarda y selecciona al instante
+  // Cliente nuevo
   const handleClienteCreado = (nuevo) => {
-    setClientesLocal(prev => [...prev, nuevo]);
-    setForm(f => ({
-      ...f,
-      clienteNombre: nuevo.nombre,
-      clienteEmpresa: nuevo.empresa,
-      clienteNIT: nuevo.nit,
-      clienteDireccion: nuevo.direccion,
-      clienteTelefono: nuevo.telefono,
-      clienteCiudad: nuevo.ciudad,
-      correo: nuevo.correo,
-    }));
+    setClientesLocal((prev) => [...prev, nuevo]);
+    setForm((f) => ({ ...f, clienteId: nuevo.id }));
+    setClienteSeleccionado(nuevo.id);
     setShowNuevoCliente(false);
-    setClienteRecienCreado(nuevo.nombre);
-    setTimeout(() => setClienteRecienCreado(null), 2500);
-    // Notifica al padre si se usa onCrearCliente (por si tu app lo necesita)
-    onCrearCliente && onCrearCliente(nuevo);
+    onCrearCliente && onCrearCliente(nuevo); // Notifica a app si lo necesitas
   };
 
-  // On submit
-  const handleSubmit = e => {
+  // Submit
+  const handleSubmit = (e) => {
     e.preventDefault();
     const { subtotal, total } = calcularTotales(form.items);
+    const datosCliente = clientesLocal.find(
+      (c) => c.id === form.clienteId
+    );
     onSubmit({
       ...form,
       subtotal,
       total,
+      clienteNombre: datosCliente?.nombre || "",
+      clienteEmpresa: datosCliente?.empresa || "",
+      clienteNIT: datosCliente?.nit || "",
+      clienteDireccion: datosCliente?.direccion || "",
+      clienteTelefono: datosCliente?.telefono || "",
+      clienteCiudad: datosCliente?.ciudad || "",
+      correo: datosCliente?.correo || "",
       items: form.items,
     });
+    // Reset (opcional)
     setForm({
-      clienteNombre: "",
-      clienteEmpresa: "",
-      clienteNIT: "",
-      clienteDireccion: "",
-      clienteTelefono: "",
-      clienteCiudad: "",
-      correo: "",
-      items: [{ cantidad: 1, descripcion: "", valorUnitario: "", valorTotal: "", fechaItem: "" }],
+      clienteId: "",
+      fecha: "",
+      items: [
+        {
+          cantidad: 1,
+          descripcion: "",
+          valorUnitario: "",
+          valorTotal: "",
+          fechaItem: "",
+        },
+      ],
       banco: "Bancolombia",
       cuentaBancaria: "230-000443-42",
-      subtotal: "",
-      total: "",
-      fecha: "",
     });
+    setClienteSeleccionado("");
   };
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-
       {/* Selección cliente */}
       <div className="flex flex-col md:flex-row gap-3">
         <div className="flex-1">
-          <label className="font-bold text-primary-700 text-xs mb-1 block">Cliente</label>
+          <label className="font-bold text-primary-700 text-xs mb-1 block">
+            Cliente
+          </label>
           <select
-            value={form.clienteNombre}
+            value={form.clienteId}
             onChange={handleClienteSelect}
             className="w-full rounded-xl px-3 py-2 border text-base"
             required
           >
             <option value="">Selecciona un cliente...</option>
-            {clientesLocal.map(c => (
-              <option key={c.id} value={c.nombre}>{c.nombre}</option>
+            {clientesLocal.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre}
+              </option>
             ))}
             <option value="__nuevo__">+ Registrar nuevo cliente</option>
           </select>
         </div>
       </div>
 
-      {/* Formulario cliente nuevo */}
+      {/* Formulario cliente nuevo (solo para registro rápido) */}
       {showNuevoCliente && (
         <div className="bg-primary-50 p-4 rounded-xl border mt-2 mb-2 shadow">
-          <h3 className="font-bold text-primary-700 text-base mb-2">Registrar Cliente</h3>
-          <FormClienteInstant
+          <h3 className="font-bold text-primary-700 text-base mb-2">
+            Registrar Cliente
+          </h3>
+          <FormClienteQuick
             onClienteCreado={handleClienteCreado}
             setClientes={setClientesLocal}
           />
         </div>
       )}
 
-      {clienteRecienCreado && (
-        <div className="text-green-700 font-bold bg-green-100 p-2 rounded-xl text-center transition-all duration-300">
-          ¡Cliente creado y seleccionado!
+      {/* Bloque datos cliente solo lectura */}
+      {clienteSeleccionado && clienteSeleccionado !== "__nuevo__" && (
+        <div className="bg-white rounded-xl shadow p-3 border flex flex-col md:flex-row gap-2 mb-2">
+          {(() => {
+            const c = clientesLocal.find((c) => c.id === clienteSeleccionado);
+            if (!c) return null;
+            return (
+              <>
+                <div className="flex-1">
+                  <span className="block text-xs font-bold text-primary-700">
+                    Empresa:
+                  </span>
+                  <span className="block">{c.empresa}</span>
+                  <span className="block text-xs font-bold text-primary-700 mt-1">
+                    NIT:
+                  </span>
+                  <span className="block">{c.nit}</span>
+                  <span className="block text-xs font-bold text-primary-700 mt-1">
+                    Ciudad:
+                  </span>
+                  <span className="block">{c.ciudad}</span>
+                </div>
+                <div className="flex-1">
+                  <span className="block text-xs font-bold text-primary-700">
+                    Dirección:
+                  </span>
+                  <span className="block">{c.direccion}</span>
+                  <span className="block text-xs font-bold text-primary-700 mt-1">
+                    Teléfono:
+                  </span>
+                  <span className="block">{c.telefono}</span>
+                  <span className="block text-xs font-bold text-primary-700 mt-1">
+                    Correo:
+                  </span>
+                  <span className="block">{c.correo}</span>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 
-      {/* Datos del cliente */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Input label="Empresa" name="clienteEmpresa" value={form.clienteEmpresa} onChange={handleChange} />
-        <Input label="NIT" name="clienteNIT" value={form.clienteNIT} onChange={handleChange} />
-        <Input label="Ciudad" name="clienteCiudad" value={form.clienteCiudad} onChange={handleChange} />
-        <Input label="Dirección" name="clienteDireccion" value={form.clienteDireccion} onChange={handleChange} />
-        <Input label="Teléfono" name="clienteTelefono" value={form.clienteTelefono} onChange={handleChange} />
-        <Input label="Correo" name="correo" value={form.correo} onChange={handleChange} />
-      </div>
+      {/* Fecha de la cuenta */}
+      <Input
+        label="Fecha de generación de cuenta"
+        name="fecha"
+        type="date"
+        value={form.fecha}
+        onChange={handleChange}
+        required
+      />
 
-      {/* Fecha general de la cuenta de cobro */}
-      <div className="flex flex-col md:flex-row gap-3">
-        <div className="flex-1">
-          <Input
-            label="Fecha de cuenta"
-            name="fecha"
-            type="date"
-            value={form.fecha}
-            onChange={handleChange}
-            required
-          />
-        </div>
-      </div>
-
-      {/* ITEMS/RECORRIDOS */}
+      {/* Recorridos/items */}
       <div className="mt-2">
-        <label className="font-bold text-primary-700 text-xs mb-2 block">Recorridos / Servicios</label>
+        <label className="font-bold text-primary-700 text-xs mb-2 block">
+          Recorridos / Servicios
+        </label>
         <div className="flex flex-col gap-3">
           {form.items.map((item, i) => (
-            <div key={i} className="rounded-xl border bg-white shadow p-3 grid grid-cols-1 md:grid-cols-7 gap-2 items-end">
+            <div
+              key={i}
+              className="rounded-xl border bg-white shadow p-3 grid grid-cols-1 md:grid-cols-6 gap-2 items-end"
+            >
               <Input
                 label="Cantidad"
                 name="cantidad"
                 type="number"
                 min="1"
                 value={item.cantidad}
-                onChange={e => handleItemChange(i, "cantidad", e.target.value)}
+                onChange={(e) =>
+                  handleItemChange(i, "cantidad", e.target.value)
+                }
                 required
               />
               <Input
                 label="Descripción"
                 name="descripcion"
                 value={item.descripcion}
-                onChange={e => handleItemChange(i, "descripcion", e.target.value)}
+                onChange={(e) =>
+                  handleItemChange(i, "descripcion", e.target.value)
+                }
                 required
                 className="md:col-span-2"
               />
@@ -248,7 +277,9 @@ export default function FormCuentaCobro({
                 type="number"
                 min="0"
                 value={item.valorUnitario}
-                onChange={e => handleItemChange(i, "valorUnitario", e.target.value)}
+                onChange={(e) =>
+                  handleItemChange(i, "valorUnitario", e.target.value)
+                }
                 required
               />
               <Input
@@ -259,13 +290,14 @@ export default function FormCuentaCobro({
                 value={item.valorTotal}
                 disabled
               />
-              {/* Fecha de este recorrido/item */}
               <Input
                 label="Fecha recorrido"
                 name="fechaItem"
                 type="date"
                 value={item.fechaItem}
-                onChange={e => handleItemChange(i, "fechaItem", e.target.value)}
+                onChange={(e) =>
+                  handleItemChange(i, "fechaItem", e.target.value)
+                }
                 required
               />
               <button
@@ -322,7 +354,11 @@ export default function FormCuentaCobro({
           Guardar Cuenta de Cobro
         </Button>
         {onCancel && (
-          <Button type="button" onClick={onCancel} className="bg-red-500 text-white flex-1">
+          <Button
+            type="button"
+            onClick={onCancel}
+            className="bg-red-500 text-white flex-1"
+          >
             Cancelar
           </Button>
         )}
@@ -331,8 +367,8 @@ export default function FormCuentaCobro({
   );
 }
 
-// COMPONENTE PROFESIONAL DE CLIENTE QUE GUARDA EN LOCALSTORAGE SIEMPRE
-function FormClienteInstant({ onClienteCreado, setClientes }) {
+// Componente para crear cliente rápido, sin mezclar con factura
+function FormClienteQuick({ onClienteCreado, setClientes }) {
   const [form, setForm] = useState({
     nombre: "",
     empresa: "",
@@ -361,15 +397,12 @@ function FormClienteInstant({ onClienteCreado, setClientes }) {
     }
     const nuevoCliente = { ...form, id: Date.now() };
 
-    // 1. Actualiza localStorage directamente
     let clientesGuardados = [];
     try {
       clientesGuardados = JSON.parse(localStorage.getItem("clientes")) || [];
     } catch {}
     clientesGuardados.push(nuevoCliente);
     localStorage.setItem("clientes", JSON.stringify(clientesGuardados));
-
-    // 2. Actualiza la lista local del padre (para select instantáneo)
     setClientes && setClientes(clientesGuardados);
 
     setLoading(false);
@@ -396,7 +429,7 @@ function FormClienteInstant({ onClienteCreado, setClientes }) {
       <Input name="ciudad" value={form.ciudad} onChange={handleChange} required label="Ciudad" />
       <Input name="correo" value={form.correo} onChange={handleChange} required label="Correo" type="email" />
       <Button type="submit" className="md:col-span-3 mt-2">
-        {loading ? "Guardando..." : "Guardar y usar este cliente"}
+        {loading ? "Guardando..." : "Guardar y seleccionar"}
       </Button>
     </form>
   );
