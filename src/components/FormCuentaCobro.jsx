@@ -10,6 +10,8 @@ export default function FormCuentaCobro({
   onCancel
 }) {
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
+  const [clienteRecienCreado, setClienteRecienCreado] = useState(null);
+
   const [form, setForm] = useState(() => initialData ? {
     ...initialData,
     items: (initialData.items || []).map(it => ({
@@ -54,7 +56,6 @@ export default function FormCuentaCobro({
     });
   };
 
-  // Suma totales
   const calcularTotales = items => {
     let subtotal = 0;
     items.forEach(it => {
@@ -64,7 +65,6 @@ export default function FormCuentaCobro({
     return { subtotal, total: subtotal };
   };
 
-  // Nuevo item
   const agregarItem = () => {
     setForm(f => ({
       ...f,
@@ -79,9 +79,13 @@ export default function FormCuentaCobro({
     }));
   };
 
-  // Selección cliente ya registrado
+  // Selección cliente
   const handleClienteSelect = e => {
     const nombre = e.target.value;
+    if (nombre === "__nuevo__") {
+      setShowNuevoCliente(true);
+      return;
+    }
     setForm(f => {
       const cliente = clientes.find(c => c.nombre === nombre);
       if (cliente) {
@@ -99,9 +103,11 @@ export default function FormCuentaCobro({
         return { ...f, clienteNombre: nombre };
       }
     });
+    setShowNuevoCliente(false);
+    setClienteRecienCreado(null);
   };
 
-  // Crear cliente desde el form, responsivo
+  // Crear cliente desde el form (flujo premium)
   const handleCrearCliente = (datos) => {
     onCrearCliente(datos);
     setForm(f => ({
@@ -115,12 +121,13 @@ export default function FormCuentaCobro({
       correo: datos.correo,
     }));
     setShowNuevoCliente(false);
+    setClienteRecienCreado(datos.nombre);
+    setTimeout(() => setClienteRecienCreado(null), 2500); // Quita mensaje tras 2.5s
   };
 
   // On submit
   const handleSubmit = e => {
     e.preventDefault();
-    // Suma totales
     const { subtotal, total } = calcularTotales(form.items);
     onSubmit({
       ...form,
@@ -162,25 +169,22 @@ export default function FormCuentaCobro({
             {clientes.map(c => (
               <option key={c.id} value={c.nombre}>{c.nombre}</option>
             ))}
-            <option value="nuevo">+ Registrar nuevo cliente</option>
+            <option value="__nuevo__">+ Registrar nuevo cliente</option>
           </select>
-        </div>
-        <div>
-          <button
-            type="button"
-            className="bg-blue-500 text-white rounded-xl font-bold px-3 py-2 text-xs mt-5 md:mt-0"
-            onClick={() => setShowNuevoCliente(s => !s)}
-          >
-            {showNuevoCliente ? "Cerrar formulario" : "+ Crear nuevo cliente"}
-          </button>
         </div>
       </div>
 
-      {/* Formulario cliente nuevo, siempre visible (no modal), súper responsive */}
+      {/* Formulario cliente nuevo, SIEMPRE visible y responsivo */}
       {showNuevoCliente && (
         <div className="bg-primary-50 p-4 rounded-xl border mt-2 mb-2 shadow">
           <h3 className="font-bold text-primary-700 text-base mb-2">Registrar Cliente</h3>
           <FormClienteResponsive onSubmit={handleCrearCliente} />
+        </div>
+      )}
+
+      {clienteRecienCreado && (
+        <div className="text-green-700 font-bold bg-green-100 p-2 rounded-xl text-center transition-all duration-300">
+          ¡Cliente creado y seleccionado!
         </div>
       )}
 
@@ -248,7 +252,7 @@ export default function FormCuentaCobro({
                 value={item.valorTotal}
                 disabled
               />
-              {/* NUEVO: Fecha de este recorrido/item */}
+              {/* Fecha de este recorrido/item */}
               <Input
                 label="Fecha recorrido"
                 name="fechaItem"
@@ -320,7 +324,7 @@ export default function FormCuentaCobro({
   );
 }
 
-// Formulario cliente responsive (NO modal)
+// Formulario cliente responsive
 function FormClienteResponsive({ onSubmit }) {
   const [form, setForm] = useState({
     nombre: "",
@@ -372,7 +376,7 @@ function FormClienteResponsive({ onSubmit }) {
       <Input name="ciudad" value={form.ciudad} onChange={handleChange} required label="Ciudad" />
       <Input name="correo" value={form.correo} onChange={handleChange} required label="Correo" type="email" />
       <Button type="submit" className="md:col-span-3 mt-2">
-        {loading ? "Guardando..." : "Registrar Cliente"}
+        {loading ? "Guardando..." : "Guardar y usar este cliente"}
       </Button>
     </form>
   );
