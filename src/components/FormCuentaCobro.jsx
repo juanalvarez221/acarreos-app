@@ -9,6 +9,8 @@ export default function FormCuentaCobro({
   initialData = null,
   onCancel
 }) {
+  // Nuevo: lista local actualizable de clientes
+  const [clientesLocal, setClientesLocal] = useState(clientes);
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
   const [clienteRecienCreado, setClienteRecienCreado] = useState(null);
 
@@ -79,7 +81,7 @@ export default function FormCuentaCobro({
     }));
   };
 
-  // Selección cliente
+  // Selección cliente (ahora usa clientesLocal)
   const handleClienteSelect = e => {
     const nombre = e.target.value;
     if (nombre === "__nuevo__") {
@@ -87,7 +89,7 @@ export default function FormCuentaCobro({
       return;
     }
     setForm(f => {
-      const cliente = clientes.find(c => c.nombre === nombre);
+      const cliente = clientesLocal.find(c => c.nombre === nombre);
       if (cliente) {
         return {
           ...f,
@@ -107,22 +109,24 @@ export default function FormCuentaCobro({
     setClienteRecienCreado(null);
   };
 
-  // Crear cliente desde el form (flujo premium)
-  const handleCrearCliente = (datos) => {
-    onCrearCliente(datos);
+  // Al crear cliente, SIEMPRE lo guarda y selecciona al instante
+  const handleClienteCreado = (nuevo) => {
+    setClientesLocal(prev => [...prev, nuevo]);
     setForm(f => ({
       ...f,
-      clienteNombre: datos.nombre,
-      clienteEmpresa: datos.empresa,
-      clienteNIT: datos.nit,
-      clienteDireccion: datos.direccion,
-      clienteTelefono: datos.telefono,
-      clienteCiudad: datos.ciudad,
-      correo: datos.correo,
+      clienteNombre: nuevo.nombre,
+      clienteEmpresa: nuevo.empresa,
+      clienteNIT: nuevo.nit,
+      clienteDireccion: nuevo.direccion,
+      clienteTelefono: nuevo.telefono,
+      clienteCiudad: nuevo.ciudad,
+      correo: nuevo.correo,
     }));
     setShowNuevoCliente(false);
-    setClienteRecienCreado(datos.nombre);
-    setTimeout(() => setClienteRecienCreado(null), 2500); // Quita mensaje tras 2.5s
+    setClienteRecienCreado(nuevo.nombre);
+    setTimeout(() => setClienteRecienCreado(null), 2500);
+    // Notifica al padre si se usa onCrearCliente (por si tu app lo necesita)
+    onCrearCliente && onCrearCliente(nuevo);
   };
 
   // On submit
@@ -166,7 +170,7 @@ export default function FormCuentaCobro({
             required
           >
             <option value="">Selecciona un cliente...</option>
-            {clientes.map(c => (
+            {clientesLocal.map(c => (
               <option key={c.id} value={c.nombre}>{c.nombre}</option>
             ))}
             <option value="__nuevo__">+ Registrar nuevo cliente</option>
@@ -174,11 +178,14 @@ export default function FormCuentaCobro({
         </div>
       </div>
 
-      {/* Formulario cliente nuevo, SIEMPRE visible y responsivo */}
+      {/* Formulario cliente nuevo */}
       {showNuevoCliente && (
         <div className="bg-primary-50 p-4 rounded-xl border mt-2 mb-2 shadow">
           <h3 className="font-bold text-primary-700 text-base mb-2">Registrar Cliente</h3>
-          <FormClienteResponsive onSubmit={handleCrearCliente} />
+          <FormClienteInstant
+            onClienteCreado={handleClienteCreado}
+            setClientes={setClientesLocal}
+          />
         </div>
       )}
 
@@ -324,8 +331,8 @@ export default function FormCuentaCobro({
   );
 }
 
-// Formulario cliente responsive
-function FormClienteResponsive({ onSubmit }) {
+// COMPONENTE PROFESIONAL DE CLIENTE QUE GUARDA EN LOCALSTORAGE SIEMPRE
+function FormClienteInstant({ onClienteCreado, setClientes }) {
   const [form, setForm] = useState({
     nombre: "",
     empresa: "",
@@ -352,9 +359,22 @@ function FormClienteResponsive({ onSubmit }) {
         return;
       }
     }
-    await new Promise((res) => setTimeout(res, 300));
+    const nuevoCliente = { ...form, id: Date.now() };
+
+    // 1. Actualiza localStorage directamente
+    let clientesGuardados = [];
+    try {
+      clientesGuardados = JSON.parse(localStorage.getItem("clientes")) || [];
+    } catch {}
+    clientesGuardados.push(nuevoCliente);
+    localStorage.setItem("clientes", JSON.stringify(clientesGuardados));
+
+    // 2. Actualiza la lista local del padre (para select instantáneo)
+    setClientes && setClientes(clientesGuardados);
+
     setLoading(false);
-    onSubmit && onSubmit(form);
+    onClienteCreado && onClienteCreado(nuevoCliente);
+
     setForm({
       nombre: "",
       empresa: "",
