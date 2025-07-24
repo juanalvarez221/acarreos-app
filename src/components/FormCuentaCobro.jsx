@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import Input from "./Input";
+import Input from "./input";
 import Button from "./Button";
 import { PlusCircle, Trash2, FileText, UserPlus2 } from "lucide-react";
 
