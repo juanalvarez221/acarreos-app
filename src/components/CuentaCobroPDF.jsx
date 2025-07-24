@@ -311,11 +311,20 @@ export default function CuentaCobroPDF({ data }) {
             {items.map((item, idx) => (
               <View key={idx} style={styles.tableRow}>
                 <Text style={styles.cell}>{item.cantidad}</Text>
-                <Text style={[styles.cell, styles.cellDesc]}>{item.descripcion}</Text>
+                <Text style={[styles.cell, styles.cellDesc]}>
+                  {item.descripcion}
+                  {/* Si tiene fecha, la muestra */}
+                  {item.fechaItem && (
+                    <Text style={{ fontSize: 9, color: "#888", display: "block", marginTop: 2 }}>
+                      {` (${item.fechaItem})`}
+                    </Text>
+                  )}
+                </Text>
                 <Text style={styles.cell}>${parseFloat(item.valorUnitario || 0).toLocaleString()}</Text>
                 <Text style={styles.cell}>${parseFloat(item.valorTotal || 0).toLocaleString()}</Text>
               </View>
             ))}
+
           </View>
           <View style={styles.totals}>
             <Text style={styles.totalLabel}>Subtotal:</Text>

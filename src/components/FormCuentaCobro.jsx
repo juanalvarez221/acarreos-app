@@ -1,20 +1,328 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Input from "./Input";
 import Button from "./Button";
-import { PlusCircle, Trash2, FileText, UserPlus2 } from "lucide-react";
 
 export default function FormCuentaCobro({
   onSubmit,
   clientes = [],
   onCrearCliente,
   initialData = null,
-  onCancel,
+  onCancel
 }) {
-  // Edición o nuevo
-  const [cliente, setCliente] = useState(initialData ? getClienteObj(initialData, clientes) : null);
-  const [busqueda, setBusqueda] = useState("");
-  const [showNuevo, setShowNuevo] = useState(false);
-  const [nuevoCliente, setNuevoCliente] = useState({
+  const [showNuevoCliente, setShowNuevoCliente] = useState(false);
+  const [form, setForm] = useState(() => initialData ? {
+    ...initialData,
+    items: (initialData.items || []).map(it => ({
+      ...it,
+      fechaItem: it.fechaItem || ""
+    }))
+  } : {
+    clienteNombre: "",
+    clienteEmpresa: "",
+    clienteNIT: "",
+    clienteDireccion: "",
+    clienteTelefono: "",
+    clienteCiudad: "",
+    correo: "",
+    items: [{ cantidad: 1, descripcion: "", valorUnitario: "", valorTotal: "", fechaItem: "" }],
+    banco: "Bancolombia",
+    cuentaBancaria: "230-000443-42",
+    subtotal: "",
+    total: "",
+    fecha: "",
+  });
+
+  // Handler universal
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setForm(f => ({ ...f, [name]: value }));
+  };
+
+  // Cambio en un item
+  const handleItemChange = (i, field, value) => {
+    setForm(f => {
+      const items = [...f.items];
+      items[i] = { ...items[i], [field]: value };
+
+      // Actualiza total automático si cambia cantidad o unitario
+      if (field === "cantidad" || field === "valorUnitario") {
+        const cantidad = parseInt(items[i].cantidad) || 0;
+        const unitario = parseFloat(items[i].valorUnitario) || 0;
+        items[i].valorTotal = cantidad * unitario;
+      }
+      return { ...f, items };
+    });
+  };
+
+  // Suma totales
+  const calcularTotales = items => {
+    let subtotal = 0;
+    items.forEach(it => {
+      const total = parseFloat(it.valorTotal) || 0;
+      subtotal += total;
+    });
+    return { subtotal, total: subtotal };
+  };
+
+  // Nuevo item
+  const agregarItem = () => {
+    setForm(f => ({
+      ...f,
+      items: [...f.items, { cantidad: 1, descripcion: "", valorUnitario: "", valorTotal: "", fechaItem: "" }]
+    }));
+  };
+
+  const quitarItem = i => {
+    setForm(f => ({
+      ...f,
+      items: f.items.filter((_, idx) => idx !== i)
+    }));
+  };
+
+  // Selección cliente ya registrado
+  const handleClienteSelect = e => {
+    const nombre = e.target.value;
+    setForm(f => {
+      const cliente = clientes.find(c => c.nombre === nombre);
+      if (cliente) {
+        return {
+          ...f,
+          clienteNombre: cliente.nombre,
+          clienteEmpresa: cliente.empresa || "",
+          clienteNIT: cliente.nit || "",
+          clienteDireccion: cliente.direccion || "",
+          clienteTelefono: cliente.telefono || "",
+          clienteCiudad: cliente.ciudad || "",
+          correo: cliente.correo || "",
+        };
+      } else {
+        return { ...f, clienteNombre: nombre };
+      }
+    });
+  };
+
+  // Crear cliente desde el form, responsivo
+  const handleCrearCliente = (datos) => {
+    onCrearCliente(datos);
+    setForm(f => ({
+      ...f,
+      clienteNombre: datos.nombre,
+      clienteEmpresa: datos.empresa,
+      clienteNIT: datos.nit,
+      clienteDireccion: datos.direccion,
+      clienteTelefono: datos.telefono,
+      clienteCiudad: datos.ciudad,
+      correo: datos.correo,
+    }));
+    setShowNuevoCliente(false);
+  };
+
+  // On submit
+  const handleSubmit = e => {
+    e.preventDefault();
+    // Suma totales
+    const { subtotal, total } = calcularTotales(form.items);
+    onSubmit({
+      ...form,
+      subtotal,
+      total,
+      items: form.items,
+    });
+    setForm({
+      clienteNombre: "",
+      clienteEmpresa: "",
+      clienteNIT: "",
+      clienteDireccion: "",
+      clienteTelefono: "",
+      clienteCiudad: "",
+      correo: "",
+      items: [{ cantidad: 1, descripcion: "", valorUnitario: "", valorTotal: "", fechaItem: "" }],
+      banco: "Bancolombia",
+      cuentaBancaria: "230-000443-42",
+      subtotal: "",
+      total: "",
+      fecha: "",
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+
+      {/* Selección cliente */}
+      <div className="flex flex-col md:flex-row gap-3">
+        <div className="flex-1">
+          <label className="font-bold text-primary-700 text-xs mb-1 block">Cliente</label>
+          <select
+            value={form.clienteNombre}
+            onChange={handleClienteSelect}
+            className="w-full rounded-xl px-3 py-2 border text-base"
+            required
+          >
+            <option value="">Selecciona un cliente...</option>
+            {clientes.map(c => (
+              <option key={c.id} value={c.nombre}>{c.nombre}</option>
+            ))}
+            <option value="nuevo">+ Registrar nuevo cliente</option>
+          </select>
+        </div>
+        <div>
+          <button
+            type="button"
+            className="bg-blue-500 text-white rounded-xl font-bold px-3 py-2 text-xs mt-5 md:mt-0"
+            onClick={() => setShowNuevoCliente(s => !s)}
+          >
+            {showNuevoCliente ? "Cerrar formulario" : "+ Crear nuevo cliente"}
+          </button>
+        </div>
+      </div>
+
+      {/* Formulario cliente nuevo, siempre visible (no modal), súper responsive */}
+      {showNuevoCliente && (
+        <div className="bg-primary-50 p-4 rounded-xl border mt-2 mb-2 shadow">
+          <h3 className="font-bold text-primary-700 text-base mb-2">Registrar Cliente</h3>
+          <FormClienteResponsive onSubmit={handleCrearCliente} />
+        </div>
+      )}
+
+      {/* Datos del cliente */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Input label="Empresa" name="clienteEmpresa" value={form.clienteEmpresa} onChange={handleChange} />
+        <Input label="NIT" name="clienteNIT" value={form.clienteNIT} onChange={handleChange} />
+        <Input label="Ciudad" name="clienteCiudad" value={form.clienteCiudad} onChange={handleChange} />
+        <Input label="Dirección" name="clienteDireccion" value={form.clienteDireccion} onChange={handleChange} />
+        <Input label="Teléfono" name="clienteTelefono" value={form.clienteTelefono} onChange={handleChange} />
+        <Input label="Correo" name="correo" value={form.correo} onChange={handleChange} />
+      </div>
+
+      {/* Fecha general de la cuenta de cobro */}
+      <div className="flex flex-col md:flex-row gap-3">
+        <div className="flex-1">
+          <Input
+            label="Fecha de cuenta"
+            name="fecha"
+            type="date"
+            value={form.fecha}
+            onChange={handleChange}
+            required
+          />
+        </div>
+      </div>
+
+      {/* ITEMS/RECORRIDOS */}
+      <div className="mt-2">
+        <label className="font-bold text-primary-700 text-xs mb-2 block">Recorridos / Servicios</label>
+        <div className="flex flex-col gap-3">
+          {form.items.map((item, i) => (
+            <div key={i} className="rounded-xl border bg-white shadow p-3 grid grid-cols-1 md:grid-cols-7 gap-2 items-end">
+              <Input
+                label="Cantidad"
+                name="cantidad"
+                type="number"
+                min="1"
+                value={item.cantidad}
+                onChange={e => handleItemChange(i, "cantidad", e.target.value)}
+                required
+              />
+              <Input
+                label="Descripción"
+                name="descripcion"
+                value={item.descripcion}
+                onChange={e => handleItemChange(i, "descripcion", e.target.value)}
+                required
+                className="md:col-span-2"
+              />
+              <Input
+                label="Unitario"
+                name="valorUnitario"
+                type="number"
+                min="0"
+                value={item.valorUnitario}
+                onChange={e => handleItemChange(i, "valorUnitario", e.target.value)}
+                required
+              />
+              <Input
+                label="Total"
+                name="valorTotal"
+                type="number"
+                min="0"
+                value={item.valorTotal}
+                disabled
+              />
+              {/* NUEVO: Fecha de este recorrido/item */}
+              <Input
+                label="Fecha recorrido"
+                name="fechaItem"
+                type="date"
+                value={item.fechaItem}
+                onChange={e => handleItemChange(i, "fechaItem", e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="bg-red-100 text-red-600 rounded-xl font-bold px-3 py-2 text-xs"
+                onClick={() => quitarItem(i)}
+                disabled={form.items.length === 1}
+              >
+                Quitar
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="bg-green-500 text-white rounded-xl font-bold px-4 py-2 mt-2"
+            onClick={agregarItem}
+          >
+            + Agregar recorrido
+          </button>
+        </div>
+      </div>
+
+      {/* Banco y cuenta */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Input
+          label="Banco"
+          name="banco"
+          value={form.banco}
+          onChange={handleChange}
+          required
+        />
+        <Input
+          label="Cuenta Bancaria"
+          name="cuentaBancaria"
+          value={form.cuentaBancaria}
+          onChange={handleChange}
+          required
+        />
+      </div>
+
+      {/* Totales automáticos */}
+      <div className="flex flex-col md:flex-row gap-3 items-center mt-3">
+        <div className="flex-1 font-bold text-primary-700 text-lg">
+          Subtotal: ${calcularTotales(form.items).subtotal.toLocaleString()}
+        </div>
+        <div className="flex-1 font-bold text-accent-700 text-lg">
+          Total: ${calcularTotales(form.items).total.toLocaleString()}
+        </div>
+      </div>
+
+      {/* Acciones */}
+      <div className="flex gap-2 mt-2">
+        <Button type="submit" className="flex-1">
+          Guardar Cuenta de Cobro
+        </Button>
+        {onCancel && (
+          <Button type="button" onClick={onCancel} className="bg-red-500 text-white flex-1">
+            Cancelar
+          </Button>
+        )}
+      </div>
+    </form>
+  );
+}
+
+// Formulario cliente responsive (NO modal)
+function FormClienteResponsive({ onSubmit }) {
+  const [form, setForm] = useState({
     nombre: "",
     empresa: "",
     nit: "",
@@ -23,112 +331,27 @@ export default function FormCuentaCobro({
     ciudad: "",
     correo: "",
   });
-
-  const [items, setItems] = useState(
-    initialData && initialData.items && initialData.items.length
-      ? initialData.items
-      : [{ cantidad: 1, descripcion: "", valorUnitario: "", valorTotal: "" }]
-  );
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (initialData) {
-      setCliente(getClienteObj(initialData, clientes));
-      setItems(initialData.items);
-    }
-    // eslint-disable-next-line
-  }, [initialData]);
-
-  function getClienteObj(data, clientes) {
-    return clientes.find(
-      c => c.nombre === data.clienteNombre && c.nit === data.clienteNIT
-    ) || {
-      nombre: data.clienteNombre,
-      empresa: data.clienteEmpresa,
-      nit: data.clienteNIT,
-      direccion: data.clienteDireccion,
-      telefono: data.clienteTelefono,
-      ciudad: data.clienteCiudad,
-      correo: data.correo,
-    };
-  }
-
-  const clientesFiltrados = clientes.filter(c =>
-    (c.nombre + " " + (c.empresa || ""))
-      .toLowerCase()
-      .includes(busqueda.toLowerCase())
-  );
-
-  const handleItemChange = (i, field, value) => {
-    const nuevos = [...items];
-    nuevos[i][field] = value;
-    if (field === "cantidad" || field === "valorUnitario") {
-      const cantidad = parseFloat(nuevos[i].cantidad) || 0;
-      const valorUnitario = parseFloat(nuevos[i].valorUnitario) || 0;
-      nuevos[i].valorTotal = cantidad * valorUnitario || "";
-    }
-    setItems(nuevos);
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
-  const addItem = () => setItems(i => [...i, { cantidad: 1, descripcion: "", valorUnitario: "", valorTotal: "" }]);
-  const removeItem = (idx) => setItems(i => i.length === 1 ? i : i.filter((_, j) => j !== idx));
-
-  const subtotal = items.reduce((acc, it) => acc + (parseFloat(it.valorTotal) || 0), 0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!cliente) {
-      alert("Selecciona un cliente o crea uno nuevo.");
-      return;
-    }
-    if (!items.length || !items[0].descripcion) {
-      alert("Agrega al menos un recorrido.");
-      return;
-    }
     setLoading(true);
-    await new Promise(res => setTimeout(res, 700));
+    for (const v of Object.values(form)) {
+      if (!v.trim()) {
+        setLoading(false);
+        alert("Por favor llena todos los campos.");
+        return;
+      }
+    }
+    await new Promise((res) => setTimeout(res, 300));
     setLoading(false);
-    onSubmit &&
-      onSubmit({
-        id: initialData && initialData.id ? initialData.id : Date.now(),
-        nroCuenta: initialData && initialData.nroCuenta ? initialData.nroCuenta : Date.now().toString().slice(-5),
-        fecha: initialData && initialData.fecha ? initialData.fecha : new Date().toISOString().slice(0, 10),
-        clienteNombre: cliente.nombre,
-        clienteEmpresa: cliente.empresa,
-        clienteNIT: cliente.nit,
-        clienteDireccion: cliente.direccion,
-        clienteTelefono: cliente.telefono,
-        clienteCiudad: cliente.ciudad,
-        correo: cliente.correo,
-        items,
-        subtotal,
-        total: subtotal,
-        banco: cliente.banco || "Bancolombia",
-        cuentaBancaria: cliente.cuentaBancaria || "",
-        emisorNombre: "ANGEL DARIO ALVAREZ PARRA",
-        emisorNIT: "98.636.763",
-        emisorDireccion: "CR 50A 73 A 48 APTO 401",
-        emisorTelefono: "3103997817",
-        regimen: "Simplificado",
-        detalleServicio: items.map(it => it.descripcion).join(", "),
-        mensajeLegal: "Dando cumplimiento al decreto 2231, artículo 9 manifiesto bajo gravedad de juramento que durante el año 2024 no tomaré costos y gastos asociados a dicha renta. Por lo tanto, aplicar el artículo 383 ET.",
-        estado: initialData && initialData.estado ? initialData.estado : "generada",
-      });
-    if (!initialData) {
-      setCliente(null);
-      setBusqueda("");
-      setItems([{ cantidad: 1, descripcion: "", valorUnitario: "", valorTotal: "" }]);
-    }
-  };
-
-  const handleCrearCliente = (e) => {
-    e.preventDefault();
-    if (Object.values(nuevoCliente).some(x => !x.trim())) {
-      alert("Completa todos los campos del cliente");
-      return;
-    }
-    onCrearCliente && onCrearCliente(nuevoCliente);
-    setCliente(nuevoCliente);
-    setNuevoCliente({
+    onSubmit && onSubmit(form);
+    setForm({
       nombre: "",
       empresa: "",
       nit: "",
@@ -137,190 +360,20 @@ export default function FormCuentaCobro({
       ciudad: "",
       correo: "",
     });
-    setShowNuevo(false);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4" autoComplete="off">
-      <div>
-        <label className="block font-bold text-lg text-primary-700 mb-2">Cliente</label>
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-accent-500 focus:ring-2 focus:ring-accent-100 outline-none text-lg bg-gray-100 transition"
-              placeholder="Buscar cliente por nombre o empresa..."
-              value={cliente ? (cliente.nombre + (cliente.empresa ? ` (${cliente.empresa})` : "")) : busqueda}
-              onChange={e => {
-                setBusqueda(e.target.value);
-                setCliente(null);
-              }}
-              autoComplete="off"
-              onFocus={() => setCliente(null)}
-            />
-            {(!cliente && busqueda) && (
-              <div className="absolute z-10 bg-white border rounded-xl mt-1 w-full shadow-xl max-h-48 overflow-auto">
-                {clientesFiltrados.length > 0 ? (
-                  clientesFiltrados.map((c, i) => (
-                    <div
-                      key={i}
-                      className="px-4 py-2 hover:bg-primary-50 cursor-pointer"
-                      onClick={() => {
-                        setCliente(c);
-                        setBusqueda("");
-                      }}
-                    >
-                      {c.nombre} {c.empresa ? `(${c.empresa})` : ""}
-                      <div className="text-xs text-gray-400">{c.correo}</div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="px-4 py-2 text-gray-400">No encontrado.</div>
-                )}
-              </div>
-            )}
-          </div>
-          <Button
-            type="button"
-            icon={UserPlus2}
-            className="bg-violet-500 hover:bg-violet-600"
-            onClick={() => setShowNuevo(true)}
-          >
-            Nuevo cliente
-          </Button>
-        </div>
-      </div>
-      {cliente && (
-        <div className="rounded-xl bg-primary-50 p-4 mt-2 grid grid-cols-1 md:grid-cols-3 gap-4 border border-primary-100">
-          <div>
-            <div className="font-bold text-primary-700">{cliente.nombre}</div>
-            <div className="text-gray-600">{cliente.empresa}</div>
-          </div>
-          <div className="text-sm text-gray-500">
-            <span>NIT: {cliente.nit} <br />
-            Dir: {cliente.direccion} <br />
-            Tel: {cliente.telefono}</span>
-          </div>
-          <div className="text-sm text-gray-500">
-            Ciudad: {cliente.ciudad} <br />
-            Correo: {cliente.correo}
-          </div>
-        </div>
-      )}
-
-      <div className="mt-4 mb-2">
-        <label className="block font-bold text-lg text-primary-700 mb-2">
-          Recorridos / Viajes
-        </label>
-        <div className="flex flex-col gap-4">
-          {items.map((item, idx) => (
-            <div key={idx} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end bg-gray-100 rounded-xl p-3 relative shadow-inner">
-              <Input
-                label="Cantidad"
-                name="cantidad"
-                type="number"
-                min={1}
-                value={item.cantidad}
-                onChange={e => handleItemChange(idx, "cantidad", e.target.value)}
-                className="md:col-span-1"
-              />
-              <Input
-                label="Descripción del Recorrido"
-                name="descripcion"
-                value={item.descripcion}
-                onChange={e => handleItemChange(idx, "descripcion", e.target.value)}
-                placeholder="Ej: Recorrido Medellín → Envigado, 22/07/2025"
-                className="md:col-span-2"
-              />
-              <Input
-                label="Valor Unitario"
-                name="valorUnitario"
-                type="number"
-                min={0}
-                value={item.valorUnitario}
-                onChange={e => handleItemChange(idx, "valorUnitario", e.target.value)}
-                className="md:col-span-1"
-              />
-              <Input
-                label="Valor Total"
-                name="valorTotal"
-                type="number"
-                min={0}
-                value={item.valorTotal}
-                readOnly
-                className="md:col-span-1 bg-gray-200"
-              />
-              {items.length > 1 && (
-                <button
-                  type="button"
-                  title="Eliminar recorrido"
-                  onClick={() => removeItem(idx)}
-                  className="absolute top-3 right-3 text-red-500 hover:bg-red-100 rounded-full p-1 transition"
-                >
-                  <Trash2 size={20} />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={addItem}
-          className="flex items-center gap-2 mt-3 px-4 py-2 bg-accent-500 hover:bg-accent-600 text-white font-semibold rounded-xl transition w-full md:w-auto justify-center"
-        >
-          <PlusCircle size={20} />
-          Agregar recorrido
-        </button>
-      </div>
-
-      <div className="mt-6 flex flex-col md:flex-row items-center justify-end gap-4 md:gap-6">
-        <div className="text-xl font-bold text-primary-700">
-          Subtotal: <span className="ml-2 text-gray-900">${subtotal.toLocaleString()}</span>
-        </div>
-        <div className="text-2xl font-extrabold text-accent-500">
-          Total: <span className="ml-2">${subtotal.toLocaleString()}</span>
-        </div>
-      </div>
-      <Button
-        type="submit"
-        icon={FileText}
-        disabled={loading}
-        className="mt-8 w-full md:w-auto px-12 text-lg"
-      >
-        {loading ? "Generando..." : initialData ? "Actualizar Cuenta de Cobro" : "Generar Cuenta de Cobro"}
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <Input name="nombre" value={form.nombre} onChange={handleChange} required label="Nombre" />
+      <Input name="empresa" value={form.empresa} onChange={handleChange} required label="Empresa" />
+      <Input name="nit" value={form.nit} onChange={handleChange} required label="NIT" />
+      <Input name="direccion" value={form.direccion} onChange={handleChange} required label="Dirección" />
+      <Input name="telefono" value={form.telefono} onChange={handleChange} required label="Teléfono" />
+      <Input name="ciudad" value={form.ciudad} onChange={handleChange} required label="Ciudad" />
+      <Input name="correo" value={form.correo} onChange={handleChange} required label="Correo" type="email" />
+      <Button type="submit" className="md:col-span-3 mt-2">
+        {loading ? "Guardando..." : "Registrar Cliente"}
       </Button>
-      {onCancel && (
-        <Button
-          type="button"
-          className="mt-2 w-full md:w-auto px-12 text-lg bg-gray-300 hover:bg-gray-400 text-gray-700"
-          onClick={onCancel}
-        >
-          Cancelar
-        </Button>
-      )}
-
-      {/* Modal para crear cliente */}
-      {showNuevo && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
-          <form
-            className="bg-white rounded-2xl p-8 shadow-2xl max-w-lg w-full relative"
-            onSubmit={handleCrearCliente}
-          >
-            <button type="button" onClick={() => setShowNuevo(false)} className="absolute top-4 right-4 text-gray-500 hover:text-accent-500 text-2xl">&times;</button>
-            <div className="text-xl font-bold mb-4">Nuevo Cliente</div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Input label="Nombre" name="nombre" value={nuevoCliente.nombre} onChange={e => setNuevoCliente(c => ({ ...c, nombre: e.target.value }))} required />
-              <Input label="Empresa" name="empresa" value={nuevoCliente.empresa} onChange={e => setNuevoCliente(c => ({ ...c, empresa: e.target.value }))} required />
-              <Input label="NIT" name="nit" value={nuevoCliente.nit} onChange={e => setNuevoCliente(c => ({ ...c, nit: e.target.value }))} required />
-              <Input label="Dirección" name="direccion" value={nuevoCliente.direccion} onChange={e => setNuevoCliente(c => ({ ...c, direccion: e.target.value }))} required />
-              <Input label="Teléfono" name="telefono" value={nuevoCliente.telefono} onChange={e => setNuevoCliente(c => ({ ...c, telefono: e.target.value }))} required />
-              <Input label="Ciudad" name="ciudad" value={nuevoCliente.ciudad} onChange={e => setNuevoCliente(c => ({ ...c, ciudad: e.target.value }))} required />
-              <Input label="Correo" name="correo" value={nuevoCliente.correo} onChange={e => setNuevoCliente(c => ({ ...c, correo: e.target.value }))} required />
-            </div>
-            <Button type="submit" className="mt-5 w-full">Crear Cliente</Button>
-          </form>
-        </div>
-      )}
     </form>
   );
 }
