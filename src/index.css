@@ -1,0 +1,13 @@
+@import './fonts.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', 'Segoe UI', 'Arial', sans-serif;
+  background: linear-gradient(135deg, #f5f7fa 0%, #d7e1ec 100%);
+  min-height: 100vh;
+  color: #202336;
+  scroll-behavior: smooth;
+}
