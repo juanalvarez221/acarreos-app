@@ -2,12 +2,29 @@ import { useState } from "react";
 import Input from "./Input";
 import Button from "./Button";
 
+// Función para formatear valores a COP (1.234.567,89)
+function formatCOP(value) {
+  if (typeof value === "string") {
+    value = value.replace(/\./g, '').replace(',', '.');
+  }
+  let number = parseFloat(value) || 0;
+  // Opcional: mostrar decimales solo si el usuario los escribe
+  return number.toLocaleString("es-CO", { minimumFractionDigits: 0 });
+}
+
+// Quita formateo para parsear valores numéricos
+function parseCOP(value) {
+  if (typeof value === "number") return value;
+  return value.replace(/\./g, '').replace(',', '.');
+}
+
 export default function FormCuentaCobro({
   onSubmit,
   clientes = [],
+  cuentas = [],
   initialData = null,
   onCancel,
-  onCrearCliente // Opcional: para refrescar desde app
+  onCrearCliente
 }) {
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
   const [clientesLocal, setClientesLocal] = useState(clientes);
@@ -22,9 +39,12 @@ export default function FormCuentaCobro({
           items: (initialData.items || []).map((it) => ({
             ...it,
             fechaItem: it.fechaItem || "",
+            valorUnitario: formatCOP(it.valorUnitario),
+            valorTotal: formatCOP(it.valorTotal),
           })),
         }
       : {
+          nroCuenta: "",
           clienteId: "",
           fecha: "",
           items: [
@@ -41,13 +61,13 @@ export default function FormCuentaCobro({
         }
   );
 
-  // Handler universal
+  // Cambia cualquier campo del form principal
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
   };
 
-  // Cliente select
+  // Cambia selección de cliente
   const handleClienteSelect = (e) => {
     const id = e.target.value;
     setForm((f) => ({ ...f, clienteId: id }));
@@ -55,20 +75,32 @@ export default function FormCuentaCobro({
     setShowNuevoCliente(false);
   };
 
-  // Items
+  // Cambia items y formatea valores COP mientras escribe
   const handleItemChange = (i, field, value) => {
     setForm((f) => {
       const items = [...f.items];
-      items[i] = { ...items[i], [field]: value };
-      if (field === "cantidad" || field === "valorUnitario") {
+      if (field === "valorUnitario") {
+        // Formatea mientras escribe
+        const raw = parseCOP(value.replace(/[^0-9.,]/g, ""));
+        items[i][field] = formatCOP(raw);
+
+        // Calcula total
         const cantidad = parseInt(items[i].cantidad) || 0;
-        const unitario = parseFloat(items[i].valorUnitario) || 0;
-        items[i].valorTotal = cantidad * unitario;
+        const unitario = parseFloat(parseCOP(items[i].valorUnitario)) || 0;
+        items[i].valorTotal = formatCOP(cantidad * unitario);
+      } else if (field === "cantidad") {
+        const cantidad = parseInt(value) || 0;
+        items[i][field] = cantidad;
+        const unitario = parseFloat(parseCOP(items[i].valorUnitario)) || 0;
+        items[i].valorTotal = formatCOP(cantidad * unitario);
+      } else {
+        items[i][field] = value;
       }
       return { ...f, items };
     });
   };
 
+  // Agrega un nuevo item vacío
   const agregarItem = () => {
     setForm((f) => ({
       ...f,
@@ -85,6 +117,7 @@ export default function FormCuentaCobro({
     }));
   };
 
+  // Quita un item
   const quitarItem = (i) => {
     setForm((f) => ({
       ...f,
@@ -92,33 +125,58 @@ export default function FormCuentaCobro({
     }));
   };
 
+  // Suma totales
   const calcularTotales = (items) => {
     let subtotal = 0;
     items.forEach((it) => {
-      const total = parseFloat(it.valorTotal) || 0;
+      const total = parseFloat(parseCOP(it.valorTotal)) || 0;
       subtotal += total;
     });
     return { subtotal, total: subtotal };
   };
 
-  // Cliente nuevo
+  // Cuando se crea un cliente rápido
   const handleClienteCreado = (nuevo) => {
     setClientesLocal((prev) => [...prev, nuevo]);
     setForm((f) => ({ ...f, clienteId: nuevo.id }));
     setClienteSeleccionado(nuevo.id);
     setShowNuevoCliente(false);
-    onCrearCliente && onCrearCliente(nuevo); // Notifica a app si lo necesitas
+    onCrearCliente && onCrearCliente(nuevo);
   };
 
-  // Submit
+  // Submit final
   const handleSubmit = (e) => {
     e.preventDefault();
     const { subtotal, total } = calcularTotales(form.items);
-    const datosCliente = clientesLocal.find(
-      (c) => c.id === form.clienteId
-    );
+    const datosCliente = clientesLocal.find((c) => c.id === form.clienteId);
+
+    let nroCuentaFinal = form.nroCuenta?.trim();
+
+    // Autonumeración por cliente si está vacío
+    if (!nroCuentaFinal) {
+      const cuentasCliente = cuentas.filter(
+        (cta) => cta.clienteId === form.clienteId
+      );
+      const inicialesCliente =
+        (datosCliente?.nombre || "CLI").substring(0, 3).toUpperCase();
+
+      const ultimosNumeros = cuentasCliente
+        .map((c) => {
+          const match = c.nroCuenta?.match(/(\d+)$/);
+          return match ? parseInt(match[1]) : 0;
+        })
+        .filter((n) => !isNaN(n));
+
+      const siguiente = ultimosNumeros.length
+        ? Math.max(...ultimosNumeros) + 1
+        : 1;
+
+      nroCuentaFinal = `${inicialesCliente}-${String(siguiente).padStart(4, "0")}`;
+    }
+
     onSubmit({
       ...form,
+      nroCuenta: nroCuentaFinal,
       subtotal,
       total,
       clienteNombre: datosCliente?.nombre || "",
@@ -128,10 +186,15 @@ export default function FormCuentaCobro({
       clienteTelefono: datosCliente?.telefono || "",
       clienteCiudad: datosCliente?.ciudad || "",
       correo: datosCliente?.correo || "",
-      items: form.items,
+      items: form.items.map((it) => ({
+        ...it,
+        valorUnitario: parseCOP(it.valorUnitario),
+        valorTotal: parseCOP(it.valorTotal)
+      })),
     });
-    // Reset (opcional)
+
     setForm({
+      nroCuenta: "",
       clienteId: "",
       fecha: "",
       items: [
@@ -174,7 +237,7 @@ export default function FormCuentaCobro({
         </div>
       </div>
 
-      {/* Formulario cliente nuevo (solo para registro rápido) */}
+      {/* Formulario cliente nuevo */}
       {showNuevoCliente && (
         <div className="bg-primary-50 p-4 rounded-xl border mt-2 mb-2 shadow">
           <h3 className="font-bold text-primary-700 text-base mb-2">
@@ -187,7 +250,7 @@ export default function FormCuentaCobro({
         </div>
       )}
 
-      {/* Bloque datos cliente solo lectura */}
+      {/* Vista previa de datos del cliente */}
       {clienteSeleccionado && clienteSeleccionado !== "__nuevo__" && (
         <div className="bg-white rounded-xl shadow p-3 border flex flex-col md:flex-row gap-2 mb-2">
           {(() => {
@@ -229,7 +292,18 @@ export default function FormCuentaCobro({
         </div>
       )}
 
-      {/* Fecha de la cuenta */}
+      {/* Número de cuenta */}
+      <Input
+        label="Número de cuenta de cobro"
+        name="nroCuenta"
+        value={form.nroCuenta}
+        onChange={handleChange}
+        lang="es"
+        spellCheck="true"
+        placeholder="Se autogenera si lo dejas vacío"
+      />
+
+      {/* Fecha */}
       <Input
         label="Fecha de generación de cuenta"
         name="fecha"
@@ -270,22 +344,25 @@ export default function FormCuentaCobro({
                 }
                 required
                 className="md:col-span-2"
+                lang="es"
+                spellCheck="true"
               />
               <Input
                 label="Unitario"
                 name="valorUnitario"
-                type="number"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 value={item.valorUnitario}
                 onChange={(e) =>
                   handleItemChange(i, "valorUnitario", e.target.value)
                 }
                 required
+                placeholder="Ej: 150.000"
               />
               <Input
                 label="Total"
                 name="valorTotal"
-                type="number"
+                type="text"
                 min="0"
                 value={item.valorTotal}
                 disabled
@@ -328,6 +405,8 @@ export default function FormCuentaCobro({
           value={form.banco}
           onChange={handleChange}
           required
+          lang="es"
+          spellCheck="true"
         />
         <Input
           label="Cuenta Bancaria"
@@ -338,17 +417,17 @@ export default function FormCuentaCobro({
         />
       </div>
 
-      {/* Totales automáticos */}
+      {/* Totales */}
       <div className="flex flex-col md:flex-row gap-3 items-center mt-3">
         <div className="flex-1 font-bold text-primary-700 text-lg">
-          Subtotal: ${calcularTotales(form.items).subtotal.toLocaleString()}
+          Subtotal: ${formatCOP(calcularTotales(form.items).subtotal)}
         </div>
         <div className="flex-1 font-bold text-accent-700 text-lg">
-          Total: ${calcularTotales(form.items).total.toLocaleString()}
+          Total: ${formatCOP(calcularTotales(form.items).total)}
         </div>
       </div>
 
-      {/* Acciones */}
+      {/* Botones */}
       <div className="flex gap-2 mt-2">
         <Button type="submit" className="flex-1">
           Guardar Cuenta de Cobro
@@ -367,7 +446,7 @@ export default function FormCuentaCobro({
   );
 }
 
-// Componente para crear cliente rápido, sin mezclar con factura
+// Registro rápido de cliente
 function FormClienteQuick({ onClienteCreado, setClientes }) {
   const [form, setForm] = useState({
     nombre: "",
@@ -396,7 +475,6 @@ function FormClienteQuick({ onClienteCreado, setClientes }) {
       }
     }
     const nuevoCliente = { ...form, id: Date.now() };
-
     let clientesGuardados = [];
     try {
       clientesGuardados = JSON.parse(localStorage.getItem("clientes")) || [];
@@ -404,10 +482,8 @@ function FormClienteQuick({ onClienteCreado, setClientes }) {
     clientesGuardados.push(nuevoCliente);
     localStorage.setItem("clientes", JSON.stringify(clientesGuardados));
     setClientes && setClientes(clientesGuardados);
-
     setLoading(false);
     onClienteCreado && onClienteCreado(nuevoCliente);
-
     setForm({
       nombre: "",
       empresa: "",
@@ -421,12 +497,12 @@ function FormClienteQuick({ onClienteCreado, setClientes }) {
 
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-      <Input name="nombre" value={form.nombre} onChange={handleChange} required label="Nombre" />
-      <Input name="empresa" value={form.empresa} onChange={handleChange} required label="Empresa" />
+      <Input name="nombre" value={form.nombre} onChange={handleChange} required label="Nombre" lang="es" spellCheck="true" />
+      <Input name="empresa" value={form.empresa} onChange={handleChange} required label="Empresa" lang="es" spellCheck="true" />
       <Input name="nit" value={form.nit} onChange={handleChange} required label="NIT" />
-      <Input name="direccion" value={form.direccion} onChange={handleChange} required label="Dirección" />
+      <Input name="direccion" value={form.direccion} onChange={handleChange} required label="Dirección" lang="es" spellCheck="true" />
       <Input name="telefono" value={form.telefono} onChange={handleChange} required label="Teléfono" />
-      <Input name="ciudad" value={form.ciudad} onChange={handleChange} required label="Ciudad" />
+      <Input name="ciudad" value={form.ciudad} onChange={handleChange} required label="Ciudad" lang="es" spellCheck="true" />
       <Input name="correo" value={form.correo} onChange={handleChange} required label="Correo" type="email" />
       <Button type="submit" className="md:col-span-3 mt-2">
         {loading ? "Guardando..." : "Guardar y seleccionar"}

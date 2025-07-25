@@ -108,6 +108,7 @@ export default function App() {
             <NuevaCuenta
               onAdd={agregarCuenta}
               clientes={clientes}
+              cuentas={cuentas}
               onCrearCliente={agregarCliente}
             />
           )}
@@ -134,6 +135,7 @@ export default function App() {
         <FormCuentaCobro
           initialData={cuentaEditar}
           clientes={clientes}
+          cuentas={cuentas}
           onCrearCliente={agregarCliente}
           onSubmit={actualizarCuenta}
           onCancel={() => setCuentaEditar(null)}
@@ -216,7 +218,7 @@ function ResumenCuentas({ generadas, pendientes, pagadas, dineroPendiente, diner
   );
 }
 
-function NuevaCuenta({ onAdd, clientes, onCrearCliente }) {
+function NuevaCuenta({ onAdd, clientes, cuentas, onCrearCliente }) {
   return (
     <div className="max-w-2xl md:max-w-3xl mx-auto">
       <SectionTitle>Nueva Cuenta de Cobro</SectionTitle>
@@ -224,6 +226,7 @@ function NuevaCuenta({ onAdd, clientes, onCrearCliente }) {
         <FormCuentaCobro
           onSubmit={onAdd}
           clientes={clientes}
+          cuentas={cuentas}
           onCrearCliente={onCrearCliente}
         />
       </Card>
@@ -502,12 +505,12 @@ function FormCliente({ onSubmit }) {
 
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <input name="nombre" value={form.nombre} onChange={handleChange} required placeholder="Nombre" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-accent-500 focus:ring-2 focus:ring-accent-100 outline-none text-lg bg-gray-100 transition" />
-      <input name="empresa" value={form.empresa} onChange={handleChange} required placeholder="Empresa" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-accent-500 focus:ring-2 focus:ring-accent-100 outline-none text-lg bg-gray-100 transition" />
+      <input name="nombre" value={form.nombre} onChange={handleChange} required placeholder="Nombre" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-accent-500 focus:ring-2 focus:ring-accent-100 outline-none text-lg bg-gray-100 transition" lang="es" spellCheck="true" />
+      <input name="empresa" value={form.empresa} onChange={handleChange} required placeholder="Empresa" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-accent-500 focus:ring-2 focus:ring-accent-100 outline-none text-lg bg-gray-100 transition" lang="es" spellCheck="true" />
       <input name="nit" value={form.nit} onChange={handleChange} required placeholder="NIT" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-accent-500 focus:ring-2 focus:ring-accent-100 outline-none text-lg bg-gray-100 transition" />
-      <input name="direccion" value={form.direccion} onChange={handleChange} required placeholder="Dirección" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-accent-500 focus:ring-2 focus:ring-accent-100 outline-none text-lg bg-gray-100 transition" />
+      <input name="direccion" value={form.direccion} onChange={handleChange} required placeholder="Dirección" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-accent-500 focus:ring-2 focus:ring-accent-100 outline-none text-lg bg-gray-100 transition" lang="es" spellCheck="true" />
       <input name="telefono" value={form.telefono} onChange={handleChange} required placeholder="Teléfono" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-accent-500 focus:ring-2 focus:ring-accent-100 outline-none text-lg bg-gray-100 transition" />
-      <input name="ciudad" value={form.ciudad} onChange={handleChange} required placeholder="Ciudad" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-accent-500 focus:ring-2 focus:ring-accent-100 outline-none text-lg bg-gray-100 transition" />
+      <input name="ciudad" value={form.ciudad} onChange={handleChange} required placeholder="Ciudad" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-accent-500 focus:ring-2 focus:ring-accent-100 outline-none text-lg bg-gray-100 transition" lang="es" spellCheck="true" />
       <input name="correo" value={form.correo} onChange={handleChange} required placeholder="Correo" type="email" className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-accent-500 focus:ring-2 focus:ring-accent-100 outline-none text-lg bg-gray-100 transition" />
       <Button type="submit" className="md:col-span-3 mt-2">
         {loading ? "Guardando..." : "Agregar Cliente"}
@@ -652,5 +655,3 @@ function EstadisticasFinancieras({ cuentas, clientes }) {
     </div>
   );
 }
-
-
